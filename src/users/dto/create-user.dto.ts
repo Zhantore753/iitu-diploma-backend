@@ -1,6 +1,7 @@
 import {
   IsEmail,
   IsEnum,
+  IsOptional,
   IsPhoneNumber,
   IsString,
   IsStrongPassword,
@@ -64,4 +65,7 @@ export class CreateUserDto {
   })
   @IsEnum(UserType)
   userType: UserType;
+
+  @IsOptional()
+  isVerified?: boolean;
 }

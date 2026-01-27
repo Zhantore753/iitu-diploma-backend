@@ -20,7 +20,7 @@ import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { User } from 'src/users/users.decorator';
 import { AuthService } from './auth.service';
 import { Roles } from './decorators/roles.decorator';
-import { AuthDto } from './dto/auth.dto';
+import { AuthDto, CompleteRegistrationDto, RegisterInitDto, VerifyEmailDto } from './dto/auth.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 
 @Controller('auth')
@@ -29,8 +29,9 @@ export class AuthController {
     private authService: AuthService,
     private readonly configService: ConfigService,
   ) {}
+  
 
-  @HttpCode(HttpStatus.OK)
+@HttpCode(HttpStatus.OK)
   @Post('login')
   @Public()
   async signIn(
@@ -47,8 +48,70 @@ export class AuthController {
 
     this.setCookies(res, refreshToken);
 
-    return res.json({ accessToken }); // ✅ полностью вручную
+    return res.json({ accessToken });
   }
+
+    @Post('register/init')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async registerInit(
+    @Body() body: RegisterInitDto,
+    @Req() req: Request,
+  ) {
+    const meta = {
+      ip: req.ip,
+      userAgent: req.get('user-agent') ?? undefined,
+    };
+    
+    const result = await this.authService.registerInit(body, meta);
+    return result;
+  }
+
+    // Этап 2: Подтверждение почты OTP
+  @Post('register/verify')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(
+    @Body() body: VerifyEmailDto,
+  ) {
+    const result = await this.authService.verifyEmail(body);
+    return result;
+  }
+
+
+    // Этап 3: Завершение регистрации (основные данные)
+  @Post('register/complete')
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  async completeRegistration(
+    @Body() body: CompleteRegistrationDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const meta = {
+      ip: req.ip,
+      userAgent: req.get('user-agent') ?? undefined,
+    };
+    
+    const { accessToken, refreshToken, user } = 
+      await this.authService.completeRegistration(body, meta);
+
+    if (!refreshToken) {
+      throw new InternalServerErrorException('No refresh token generated');
+    }
+
+    this.setCookies(res, refreshToken);
+
+    // Не возвращаем пароль в ответе
+    const { password, ...userWithoutPassword } = user;
+    
+    return res.status(HttpStatus.CREATED).json({ 
+      accessToken, 
+      user: userWithoutPassword 
+    });
+  }
+
+
 
   @Post('refresh')
   @UseGuards(RefreshTokenGuard)

@@ -7,10 +7,12 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as ms from 'ms';
 import { BcryptService } from 'src/bcrypt/bcrypt.service';
+import { OtpService } from 'src/otp/otp.service';
 import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
 import { TokensService } from 'src/tokens/tokens.service';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
+import { CompleteRegistrationDto, RegisterInitDto, VerifyEmailDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -21,6 +23,7 @@ export class AuthService {
     private readonly refreshTokenService: RefreshTokenService,
     private readonly tokensService: TokensService,
     private readonly configService: ConfigService,
+    private readonly otpService: OtpService, // Сервис для отправки OTP
   ) {}
 
   async signUp(
@@ -62,6 +65,150 @@ export class AuthService {
 
     await this.refreshTokenService.enforceMaxSessions(newUser.id, maxSessions);
     return { accessToken, refreshToken, newUser };
+  }
+
+  // Этап 1: Начало регистрации (проверка email и отправка OTP)
+  async registerInit(
+    registerDto: RegisterInitDto,
+    meta?: { ip?: string; userAgent?: string },
+  ) {
+    // Проверяем, существует ли пользователь
+    const userExists = await this.usersService.findByEmail(registerDto.email);
+    if (userExists) {
+      throw new BadRequestException('User already exists');
+    }
+
+    // Генерируем и отправляем OTP
+    const otp = await this.otpService.generateAndSendOtp(registerDto.email);
+
+    // Временно сохраняем данные регистрации (можно использовать Redis или временное хранилище)
+    await this.otpService.storeRegistrationData(registerDto.email, {
+      email: registerDto.email,
+      passwordHash: await this.bcryptService.hash(registerDto.password),
+      meta,
+    });
+
+    return {
+      message: 'OTP sent to email',
+      email: registerDto.email,
+      otpExpiry: otp.expiry, // Для отладки, в продакшене не отправлять
+    };
+  }
+
+  // Этап 2: Подтверждение почты OTP
+  async verifyEmail(verifyDto: VerifyEmailDto) {
+    // Проверяем OTP
+    const isValid = await this.otpService.verifyOtp(
+      verifyDto.email,
+      verifyDto.otp,
+    );
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    // Получаем временные данные регистрации
+    const registrationData = await this.otpService.getRegistrationData(
+      verifyDto.email,
+    );
+    if (!registrationData) {
+      throw new BadRequestException(
+        'Registration session expired. Please start over.',
+      );
+    }
+
+    // Отмечаем email как подтвержденный
+    await this.otpService.markEmailAsVerified(verifyDto.email);
+
+    // Генерируем временный токен для завершения регистрации
+    const tempToken = await this.jwtService.signAsync(
+      { email: verifyDto.email, stage: 'email_verified' },
+      { secret: this.configService.get('JWT_TEMP_SECRET'), expiresIn: '15m' },
+    );
+
+    return {
+      message: 'Email verified successfully',
+      tempToken,
+      nextStep: 'complete-registration',
+    };
+  }
+
+  // Этап 3: Завершение регистрации
+  async completeRegistration(
+    completeDto: CompleteRegistrationDto,
+    meta?: { ip?: string; userAgent?: string },
+  ) {
+    // Проверяем временный токен (можно также валидировать через Guard)
+    try {
+      const decoded = await this.jwtService.verifyAsync(completeDto.tempToken, {
+        secret: this.configService.get('JWT_TEMP_SECRET'),
+      });
+
+      if (
+        decoded.email !== completeDto.email ||
+        decoded.stage !== 'email_verified'
+      ) {
+        throw new BadRequestException('Invalid registration session');
+      }
+    } catch (err) {
+      throw new BadRequestException('Registration session expired');
+    }
+
+    // Проверяем, что email все еще не занят
+    const userExists = await this.usersService.findByEmail(completeDto.email);
+    if (userExists) {
+      throw new BadRequestException('User already exists');
+    }
+
+    // Получаем хеш пароля из временного хранилища
+    const registrationData = await this.otpService.getRegistrationData(
+      completeDto.email,
+    );
+    if (!registrationData) {
+      throw new BadRequestException('Registration data not found');
+    }
+
+    // Создаем пользователя
+    const newUser = await this.usersService.create({
+      email: completeDto.email,
+      password: registrationData.passwordHash,
+      firstName: completeDto.firstName,
+      lastName: completeDto.lastName,
+      isVerified: true,
+      phone: "",
+      userType: completeDto.userType
+    });
+
+    // Генерируем токены
+    const { accessToken, refreshToken } = await this.tokensService.getTokens(
+      newUser.id,
+      newUser.email,
+      [newUser.userType],
+    );
+
+    // Сохраняем refresh token
+    const refreshExpStr = this.configService.get<string>(
+      'JWT_REFRESH_SECRET_EXP',
+    ) as ms.StringValue;
+    const expMs = ms(refreshExpStr);
+    const expiresAt = new Date(Date.now() + expMs);
+
+    await this.refreshTokenService.create(
+      refreshToken,
+      newUser.id,
+      expiresAt,
+      meta || registrationData.meta,
+    );
+
+    // Ограничиваем количество сессий
+    const maxSessions = Number(
+      this.configService.get<number>('REFRESH_TOKEN_MAX_SESSIONS') ?? 5,
+    );
+    await this.refreshTokenService.enforceMaxSessions(newUser.id, maxSessions);
+
+    // Очищаем временные данные
+    await this.otpService.clearRegistrationData(completeDto.email);
+
+    return { accessToken, refreshToken, user: newUser };
   }
 
   // SignIn: создаём access + refresh, сохраняем refresh (хеш) и возвращаем access + refresh (или помещаем в cookie)

@@ -20,6 +20,8 @@ import { CacheConfigModule } from './cache/cache-config/cache-config.module';
 import { RentalModule } from './rental/rental.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AdminModule } from './admin/admin.module';
+import { OtpModule } from './otp/otp.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { AdminModule } from './admin/admin.module';
     RentalModule,
     AnalyticsModule,
     AdminModule,
+    OtpModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [

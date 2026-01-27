@@ -12,6 +12,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AccessTokenStrategy } from './strategies/accessToken.strategy';
 import { RefreshTokenStrategy } from './strategies/refreshToken.strategy';
 import { RolesGuard } from './guards/roles.guard';
+import { OtpModule } from 'src/otp/otp.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RolesGuard } from './guards/roles.guard';
       }),
       inject: [ConfigService],
     }),
+    OtpModule
   ],
   controllers: [AuthController],
   providers: [
