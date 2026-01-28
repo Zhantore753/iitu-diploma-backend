@@ -3,7 +3,10 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
+  IsPhoneNumber,
   IsString,
+  Length,
   MinLength,
 } from 'class-validator';
 import { UserType } from 'generated/prisma';
@@ -24,21 +27,16 @@ export class AuthDto {
 }
 
 export class RegisterInitDto {
-  @ApiProperty({
-    description: 'Email пользователя',
-    example: 'user@example.com',
-  })
   @IsEmail()
   email: string;
 
-  @ApiProperty({
-    description: 'Пароль пользователя',
-    example: 'StrongP@ssw0rd',
-    minLength: 8,
-  })
   @IsString()
   @MinLength(8)
   password: string;
+
+  @IsString()
+  @Length(2, 50)
+  firstName: string;
 }
 
 export class VerifyEmailDto {
@@ -58,38 +56,26 @@ export class VerifyEmailDto {
   otp: string;
 }
 
-export class CompleteRegistrationDto extends RegisterInitDto {
-  @ApiProperty({
-    description: 'Имя пользователя',
-    example: 'John',
-  })
-  @IsString()
-  @IsNotEmpty()
-  firstName: string;
+export class CompleteRegistrationDto {
+  @IsEmail()
+  email: string;
 
-  @ApiProperty({
-    description: 'Фамилия пользователя',
-    example: 'Doe',
-  })
   @IsString()
-  @IsNotEmpty()
-  lastName: string;
-
-  @ApiProperty({
-    description: 'OTP код подтверждения',
-    example: '123456',
-  })
-  @IsString()
-  @IsNotEmpty()
-  otp: string;
-
   tempToken: string;
 
-  @ApiProperty({
-    description: 'Тип пользователя',
-    enum: UserType,
-    example: UserType.admin, 
-  })
   @IsEnum(UserType)
   userType: UserType;
+
+  @IsString()
+  @Length(2, 30)
+  nickname: string;
+
+  @IsPhoneNumber('KZ')
+  phone: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 300)
+  bio?: string;
 }
+

@@ -22,6 +22,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AdminModule } from './admin/admin.module';
 import { OtpModule } from './otp/otp.module';
 import { RedisModule } from './redis/redis.module';
+import { FileModule } from './file/file.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { RedisModule } from './redis/redis.module';
     AdminModule,
     OtpModule,
     RedisModule,
+    FileModule,
   ],
   controllers: [AppController],
   providers: [

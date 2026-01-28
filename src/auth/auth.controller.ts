@@ -9,7 +9,9 @@ import {
   Post,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
@@ -20,8 +22,14 @@ import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { User } from 'src/users/users.decorator';
 import { AuthService } from './auth.service';
 import { Roles } from './decorators/roles.decorator';
-import { AuthDto, CompleteRegistrationDto, RegisterInitDto, VerifyEmailDto } from './dto/auth.dto';
+import {
+  AuthDto,
+  CompleteRegistrationDto,
+  RegisterInitDto,
+  VerifyEmailDto,
+} from './dto/auth.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('auth')
 export class AuthController {
@@ -29,9 +37,8 @@ export class AuthController {
     private authService: AuthService,
     private readonly configService: ConfigService,
   ) {}
-  
 
-@HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.OK)
   @Post('login')
   @Public()
   async signIn(
@@ -51,39 +58,38 @@ export class AuthController {
     return res.json({ accessToken });
   }
 
-    @Post('register/init')
+  @Post('register/init')
   @Public()
   @HttpCode(HttpStatus.OK)
-  async registerInit(
-    @Body() body: RegisterInitDto,
-    @Req() req: Request,
-  ) {
+  async registerInit(@Body() body: RegisterInitDto, @Req() req: Request) {
     const meta = {
       ip: req.ip,
       userAgent: req.get('user-agent') ?? undefined,
     };
-    
+
     const result = await this.authService.registerInit(body, meta);
     return result;
   }
 
-    // Этап 2: Подтверждение почты OTP
+  // Этап 2: Подтверждение почты OTP
   @Post('register/verify')
   @Public()
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(
-    @Body() body: VerifyEmailDto,
-  ) {
+  async verifyEmail(@Body() body: VerifyEmailDto) {
     const result = await this.authService.verifyEmail(body);
     return result;
   }
 
-
-    // Этап 3: Завершение регистрации (основные данные)
+  // Этап 3: Завершение регистрации (основные данные)
   @Post('register/complete')
   @Public()
-  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
   async completeRegistration(
+    @UploadedFile() avatar: Express.Multer.File,
     @Body() body: CompleteRegistrationDto,
     @Req() req: Request,
     @Res() res: Response,
@@ -92,9 +98,9 @@ export class AuthController {
       ip: req.ip,
       userAgent: req.get('user-agent') ?? undefined,
     };
-    
-    const { accessToken, refreshToken, user } = 
-      await this.authService.completeRegistration(body, meta);
+
+    const { accessToken, refreshToken, user } =
+      await this.authService.completeRegistration(body, avatar, meta);
 
     if (!refreshToken) {
       throw new InternalServerErrorException('No refresh token generated');
@@ -104,14 +110,12 @@ export class AuthController {
 
     // Не возвращаем пароль в ответе
     const { password, ...userWithoutPassword } = user;
-    
-    return res.status(HttpStatus.CREATED).json({ 
-      accessToken, 
-      user: userWithoutPassword 
+
+    return res.status(HttpStatus.CREATED).json({
+      accessToken,
+      user: userWithoutPassword,
     });
   }
-
-
 
   @Post('refresh')
   @UseGuards(RefreshTokenGuard)

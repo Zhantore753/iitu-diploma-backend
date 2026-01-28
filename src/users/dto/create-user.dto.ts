@@ -68,4 +68,8 @@ export class CreateUserDto {
 
   @IsOptional()
   isVerified?: boolean;
+
+  bio?: string;
+
+  avatar: string | null;
 }

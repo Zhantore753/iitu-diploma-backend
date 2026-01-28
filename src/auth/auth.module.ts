@@ -13,9 +13,11 @@ import { AccessTokenStrategy } from './strategies/accessToken.strategy';
 import { RefreshTokenStrategy } from './strategies/refreshToken.strategy';
 import { RolesGuard } from './guards/roles.guard';
 import { OtpModule } from 'src/otp/otp.module';
+import { FileModule } from 'src/file/file.module';
 
 @Module({
   imports: [
+    FileModule,
     UsersModule,
     BcryptModule,
     RefreshTokenModule,
@@ -29,7 +31,7 @@ import { OtpModule } from 'src/otp/otp.module';
       }),
       inject: [ConfigService],
     }),
-    OtpModule
+    OtpModule,
   ],
   controllers: [AuthController],
   providers: [

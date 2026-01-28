@@ -12,7 +12,12 @@ import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
 import { TokensService } from 'src/tokens/tokens.service';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
-import { CompleteRegistrationDto, RegisterInitDto, VerifyEmailDto } from './dto/auth.dto';
+import {
+  CompleteRegistrationDto,
+  RegisterInitDto,
+  VerifyEmailDto,
+} from './dto/auth.dto';
+import { FileService } from 'src/file/file.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +29,7 @@ export class AuthService {
     private readonly tokensService: TokensService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpService, // Сервис для отправки OTP
+      private readonly fileService: FileService, // ✅ ВОТ ОНО
   ) {}
 
   async signUp(
@@ -85,6 +91,7 @@ export class AuthService {
     await this.otpService.storeRegistrationData(registerDto.email, {
       email: registerDto.email,
       passwordHash: await this.bcryptService.hash(registerDto.password),
+      firstName: registerDto.firstName,
       meta,
     });
 
@@ -135,8 +142,12 @@ export class AuthService {
   // Этап 3: Завершение регистрации
   async completeRegistration(
     completeDto: CompleteRegistrationDto,
+    avatar: Express.Multer.File,
     meta?: { ip?: string; userAgent?: string },
   ) {
+    if (!avatar) {
+      throw new BadRequestException('Avatar is required');
+    }
     // Проверяем временный токен (можно также валидировать через Guard)
     try {
       const decoded = await this.jwtService.verifyAsync(completeDto.tempToken, {
@@ -159,24 +170,30 @@ export class AuthService {
       throw new BadRequestException('User already exists');
     }
 
+    const avatarUrl = await this.fileService.upload(avatar, 'avatars');
+
     // Получаем хеш пароля из временного хранилища
     const registrationData = await this.otpService.getRegistrationData(
       completeDto.email,
     );
-    if (!registrationData) {
+
+
+        if (!registrationData) {
       throw new BadRequestException('Registration data not found');
     }
 
-    // Создаем пользователя
     const newUser = await this.usersService.create({
       email: completeDto.email,
       password: registrationData.passwordHash,
-      firstName: completeDto.firstName,
-      lastName: completeDto.lastName,
+      firstName: registrationData.firstName,
+      lastName: completeDto.nickname,
+      phone: completeDto.phone,
+      bio: completeDto.bio,
+      avatar: avatarUrl,
+      userType: completeDto.userType,
       isVerified: true,
-      phone: "",
-      userType: completeDto.userType
     });
+
 
     // Генерируем токены
     const { accessToken, refreshToken } = await this.tokensService.getTokens(
