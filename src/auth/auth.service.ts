@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -29,8 +31,189 @@ export class AuthService {
     private readonly tokensService: TokensService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpService, // Сервис для отправки OTP
-      private readonly fileService: FileService, // ✅ ВОТ ОНО
+    private readonly fileService: FileService, // ✅ ВОТ ОНО
+    private readonly logger: Logger,
   ) {}
+
+  async forgotPassword(email: string): Promise<void> {
+    // Проверяем существует ли пользователь
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      // Для безопасности не сообщаем, что пользователя не существует
+      return;
+    }
+
+    // Генерируем токен сброса пароля
+    const resetToken = await this.jwtService.signAsync(
+      {
+        sub: user.id,
+        email: user.email,
+        purpose: 'password_reset',
+      },
+      {
+        secret: this.configService.get('JWT_RESET_SECRET'),
+        expiresIn: '1h', // Токен действует 1 час
+      },
+    );
+
+    // Сохраняем хеш токена в Redis для проверки использования
+    const hashedToken = await this.bcryptService.hash(resetToken);
+    await this.otpService.storePasswordResetToken(user.email, hashedToken);
+
+    // TODO: Отправляем email с токеном
+    const resetUrl = `${this.configService.get('FRONTEND_URL')}/auth/reset-password?token=${resetToken}`;
+
+    this.logger.log(`Password reset URL for ${user.email}: ${resetUrl}`);
+    // В продакшене:
+    // await this.emailService.sendPasswordResetEmail(user.email, resetUrl);
+  }
+
+  async verifyResetToken(token: string): Promise<boolean> {
+    try {
+      // Проверяем JWT токен
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get('JWT_RESET_SECRET'),
+      });
+
+      if (payload.purpose !== 'password_reset') {
+        return false;
+      }
+
+      // Проверяем, что токен не был использован
+      const storedHash = await this.otpService.getPasswordResetToken(
+        payload.email,
+      );
+      if (!storedHash) {
+        return false;
+      }
+
+      // Сравниваем хеш токена
+      const isValid = await this.bcryptService.compare(token, storedHash);
+      return isValid;
+    } catch (error) {
+      return false;
+    }
+  }
+
+   async resetPassword(token: string, newPassword: string): Promise<void> {
+    // Проверяем токен
+    const isValid = await this.verifyResetToken(token);
+    if (!isValid) {
+      throw new BadRequestException('Неверный или просроченный токен сброса пароля');
+    }
+
+    // Декодируем токен для получения email
+    const payload = await this.jwtService.decode(token) as any;
+    
+    // Находим пользователя
+    const user = await this.usersService.findByEmail(payload.email);
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    // Валидация пароля (опционально)
+    this.validatePassword(newPassword);
+
+    // Обновляем пароль через usersService
+    await this.usersService.updatePassword(user.id, newPassword);
+
+    // Удаляем использованный токен
+    await this.otpService.clearPasswordResetToken(payload.email);
+
+    // Разлогиниваем все сессии пользователя
+    await this.refreshTokenService.deleteAllByUser(user.id);
+
+    // TODO: Отправить email подтверждения смены пароля
+    this.logger.log(`Password reset successful for user: ${user.email}`);
+  }
+
+  async changePassword(
+    userId: number, 
+    currentPassword: string, 
+    newPassword: string
+  ): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    // Проверяем текущий пароль
+    const isValid = await this.bcryptService.compare(currentPassword, user.password);
+    if (!isValid) {
+      throw new BadRequestException('Текущий пароль неверен');
+    }
+
+    // Валидация нового пароля
+    this.validatePassword(newPassword);
+
+    // Проверяем, что новый пароль отличается от старого
+    const isSamePassword = await this.bcryptService.compare(newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('Новый пароль должен отличаться от старого');
+    }
+
+    // Обновляем пароль
+    await this.usersService.updatePassword(userId, newPassword);
+
+    // Разлогиниваем все сессии (опционально, но рекомендуется)
+    await this.refreshTokenService.deleteAllByUser(userId);
+
+    // TODO: Отправить email уведомление
+    this.logger.log(`Password changed for user: ${user.email}`);
+  }
+
+
+    private validatePassword(password: string): void {
+    if (password.length < 8) {
+      throw new BadRequestException('Пароль должен содержать минимум 8 символов');
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      throw new BadRequestException('Пароль должен содержать хотя бы одну заглавную букву');
+    }
+
+    if (!/[a-z]/.test(password)) {
+      throw new BadRequestException('Пароль должен содержать хотя бы одну строчную букву');
+    }
+
+    if (!/[0-9]/.test(password)) {
+      throw new BadRequestException('Пароль должен содержать хотя бы одну цифру');
+    }
+
+    // Проверка на распространенные слабые пароли
+    const weakPasswords = [
+      'password', '12345678', 'qwerty', 'admin123', 'password123',
+      'letmein', 'welcome', 'monkey', 'sunshine', 'iloveyou'
+    ];
+    
+    if (weakPasswords.includes(password.toLowerCase())) {
+      throw new BadRequestException('Пароль слишком простой, выберите другой');
+    }
+  }
+
+  async getResetTokenInfo(
+    token: string,
+  ): Promise<{ email: string; expiresAt: Date } | null> {
+    try {
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get('JWT_RESET_SECRET'),
+      });
+
+      if (payload.purpose !== 'password_reset') {
+        return null;
+      }
+
+      // Получаем время истечения
+      const expiresAt = new Date(payload.exp * 1000);
+
+      return {
+        email: payload.email,
+        expiresAt,
+      };
+    } catch (error) {
+      return null;
+    }
+  }
 
   async signUp(
     createUserDto: CreateUserDto,
@@ -177,8 +360,7 @@ export class AuthService {
       completeDto.email,
     );
 
-
-        if (!registrationData) {
+    if (!registrationData) {
       throw new BadRequestException('Registration data not found');
     }
 
@@ -193,7 +375,6 @@ export class AuthService {
       userType: completeDto.userType,
       isVerified: true,
     });
-
 
     // Генерируем токены
     const { accessToken, refreshToken } = await this.tokensService.getTokens(

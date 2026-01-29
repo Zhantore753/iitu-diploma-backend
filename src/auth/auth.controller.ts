@@ -25,7 +25,9 @@ import { Roles } from './decorators/roles.decorator';
 import {
   AuthDto,
   CompleteRegistrationDto,
+  ForgotPasswordDto,
   RegisterInitDto,
+  ResetPasswordDto,
   VerifyEmailDto,
 } from './dto/auth.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
@@ -37,6 +39,55 @@ export class AuthController {
     private authService: AuthService,
     private readonly configService: ConfigService,
   ) {}
+
+  @Post('password/change')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @User() user: any,
+    @Body()
+    body: {
+      currentPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+    },
+  ) {
+    if (body.newPassword !== body.confirmPassword) {
+      throw new BadRequestException('Пароли не совпадают');
+    }
+
+    await this.authService.changePassword(
+      user.sub,
+      body.currentPassword,
+      body.newPassword,
+    );
+
+    return { message: 'Пароль успешно изменен' };
+  }
+
+  // Эндпоинты восстановления пароля
+  @Post('password/forgot')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    await this.authService.forgotPassword(body.email);
+    return {
+      message:
+        'Если пользователь с таким email существует, инструкции по сбросу пароля будут отправлены',
+    };
+  }
+
+  @Post('password/reset')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    if (body.newPassword !== body.confirmPassword) {
+      throw new BadRequestException('Пароли не совпадают');
+    }
+
+    await this.authService.resetPassword(body.resetToken, body.newPassword);
+
+    return { message: 'Пароль успешно изменен' };
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('login')

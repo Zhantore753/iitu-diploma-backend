@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsOptional,
@@ -8,7 +9,7 @@ import {
   Length,
 } from 'class-validator';
 import { UserType } from 'generated/prisma';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -72,4 +73,90 @@ export class CreateUserDto {
   bio?: string;
 
   avatar: string | null;
+}
+
+
+export class UpdateUserDto {
+  @ApiPropertyOptional({
+    description: 'Email пользователя',
+    example: 'newemail@example.com',
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Имя пользователя',
+    example: 'Новое имя',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 50)
+  firstName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Фамилия пользователя',
+    example: 'Новая фамилия',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 50)
+  lastName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Номер телефона',
+    example: '+77071234567',
+  })
+  @IsOptional()
+  @IsPhoneNumber('KZ')
+  phone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Аватар пользователя',
+    example: 'https://example.com/avatar.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  avatar?: string;
+
+  @ApiPropertyOptional({
+    description: 'Биография пользователя',
+    example: 'Новая биография...',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 300)
+  bio?: string;
+
+  @ApiPropertyOptional({
+    description: 'Адрес пользователя',
+    example: 'г. Алматы, ул. Примерная, д. 1',
+  })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({
+    description: 'Тип пользователя',
+    enum: UserType,
+  })
+  @IsOptional()
+  @IsEnum(UserType)
+  userType?: UserType;
+
+  @ApiPropertyOptional({
+    description: 'Статус верификации',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isVerified?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Статус активности',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
