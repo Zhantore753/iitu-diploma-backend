@@ -32,6 +32,7 @@ import {
 } from './dto/auth.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -134,17 +135,52 @@ export class AuthController {
   // Этап 3: Завершение регистрации (основные данные)
   @Post('register/complete')
   @Public()
+  @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('avatar', {
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
+  @ApiBody({
+    description: 'Завершение регистрации с загрузкой аватара',
+    schema: {
+      type: 'object',
+      required: [
+        'email',
+        'tempToken',
+        'userType',
+        'nickname',
+        'phone',
+        'avatar',
+      ],
+      properties: {
+        email: { type: 'string', format: 'email' },
+        tempToken: { type: 'string' },
+        userType: {
+          type: 'string',
+          enum: Object.values(UserType),
+        },
+        nickname: { type: 'string' },
+        phone: { type: 'string' },
+        bio: { type: 'string', nullable: true },
+        avatar: {
+          type: 'string',
+          format: 'binary', // 🔥 ВАЖНО
+        },
+      },
+    },
+  })
+  
   async completeRegistration(
     @UploadedFile() avatar: Express.Multer.File,
     @Body() body: CompleteRegistrationDto,
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    if (!avatar) {
+      throw new BadRequestException('Avatar is required');
+    }
+
     const meta = {
       ip: req.ip,
       userAgent: req.get('user-agent') ?? undefined,
@@ -153,13 +189,8 @@ export class AuthController {
     const { accessToken, refreshToken, user } =
       await this.authService.completeRegistration(body, avatar, meta);
 
-    if (!refreshToken) {
-      throw new InternalServerErrorException('No refresh token generated');
-    }
-
     this.setCookies(res, refreshToken);
 
-    // Не возвращаем пароль в ответе
     const { password, ...userWithoutPassword } = user;
 
     return res.status(HttpStatus.CREATED).json({
