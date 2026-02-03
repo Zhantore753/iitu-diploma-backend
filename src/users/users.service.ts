@@ -284,25 +284,25 @@ export class UsersService {
     }
   }
 
-  private async invalidateListCaches(): Promise<void> {
-    try {
-      // Этот метод зависит от реализации кэша
-      // Если используете Redis, можно сделать так:
+private async invalidateListCaches(): Promise<void> {
+  try {
+    // Получаем доступ к Redis клиенту (зависит от версии cache-manager)
+    const store = this.cacheManager.stores;
+    
+    // Если используете cache-manager-redis-store или ioredis
+    if ('keys' in store) {
+      const keys = await (store as any).keys('users:list:*');
+      const countKeys = await (store as any).keys('users:count:*');
       
-      // Вариант 1: Использовать теги (если поддерживается)
-      // await this.cacheManager.store.keys('users:list:*').then(keys => {
-      //   return Promise.all(keys.map(key => this.cacheManager.del(key)));
-      // });
+      const allKeys = [...keys, ...countKeys];
       
-      // Вариант 2: Удалять по паттерну (зависит от драйвера кэша)
-      // Просто логируем, что нужно инвалидировать
-      this.logger.debug('List caches should be invalidated');
-      
-      // Вариант 3: Удалить конкретные ключи, если знаете паттерн
-      // await this.cacheManager.del('users:count:*'); // не работает с wildcard в стандартном Cache
-      
-    } catch (error) {
-      this.logger.warn(`Failed to invalidate list caches: ${error.message}`);
+      if (allKeys.length > 0) {
+        await Promise.all(allKeys.map(key => this.cacheManager.del(key)));
+        this.logger.debug(`Invalidated ${allKeys.length} list cache keys`);
+      }
     }
+  } catch (error) {
+    this.logger.warn(`Failed to invalidate list caches: ${error.message}`);
   }
+}
 }

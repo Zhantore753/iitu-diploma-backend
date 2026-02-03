@@ -12,45 +12,33 @@ export class TokensService {
   ) {}
 
   async getTokens(userId: number, email: string, roles: UserType[]) {
-    const JWT_SECRET = this.configService.get<string>('JWT_SECRET');
-    const JWT_SECRET_EXP = this.configService.get<string>(
-      'JWT_SECRET_EXP',
-    ) as ms.StringValue;
+  const userRoles = roles || [UserType.admin]; // или ваше значение по умолчанию
 
-    const JWT_REFRESH_SECRET =
-      this.configService.get<string>('JWT_REFRESH_SECRET');
-    const JWT_REFRESH_SECRET_EXP = this.configService.get<string>(
-      'JWT_REFRESH_SECRET_EXP',
-    ) as ms.StringValue;
+
+    // Добавляем значения по умолчанию через оператор ||
+    const JWT_SECRET = this.configService.get<string>('JWT_SECRET');
+    const JWT_SECRET_EXP = this.configService.get<string>('JWT_SECRET_EXP') || '15m'; 
+
+    const JWT_REFRESH_SECRET = this.configService.get<string>('JWT_REFRESH_SECRET');
+    const JWT_REFRESH_SECRET_EXP = this.configService.get<string>('JWT_REFRESH_SECRET_EXP') || '7d';
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
-        {
-          sub: userId,
-          email,
-          roles,
-        },
+        { sub: userId, email, roles },
         {
           secret: JWT_SECRET,
-          expiresIn: JWT_SECRET_EXP,
+          expiresIn: JWT_SECRET_EXP as any, // Приводим к any, чтобы TS не ругался на StringValue
         },
       ),
       this.jwtService.signAsync(
-        {
-          sub: userId,
-          email,
-          roles,
-        },
+        { sub: userId, email, roles },
         {
           secret: JWT_REFRESH_SECRET,
-          expiresIn: JWT_REFRESH_SECRET_EXP,
+          expiresIn: JWT_REFRESH_SECRET_EXP as any,
         },
       ),
     ]);
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return { accessToken, refreshToken };
   }
 }

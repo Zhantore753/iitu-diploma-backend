@@ -273,7 +273,7 @@ export class AuthService {
     // Временно сохраняем данные регистрации (можно использовать Redis или временное хранилище)
     await this.otpService.storeRegistrationData(registerDto.email, {
       email: registerDto.email,
-      passwordHash: await this.bcryptService.hash(registerDto.password),
+      passwordHash: registerDto.password,
       firstName: registerDto.firstName,
       meta,
     });
@@ -312,7 +312,7 @@ export class AuthService {
     // Генерируем временный токен для завершения регистрации
     const tempToken = await this.jwtService.signAsync(
       { email: verifyDto.email, stage: 'email_verified' },
-      { secret: this.configService.get('JWT_TEMP_SECRET'), expiresIn: '15m' },
+      { secret: this.configService.get('JWT_SECRET'), expiresIn: '15m' },
     );
 
     return {
@@ -334,7 +334,7 @@ export class AuthService {
     // Проверяем временный токен (можно также валидировать через Guard)
     try {
       const decoded = await this.jwtService.verifyAsync(completeDto.tempToken, {
-        secret: this.configService.get('JWT_TEMP_SECRET'),
+        secret: this.configService.get('JWT_SECRET'),
       });
 
       if (
@@ -416,10 +416,10 @@ export class AuthService {
     meta?: { ip?: string; userAgent?: string },
   ) {
     const user = await this.usersService.findByEmail(email);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) throw new UnauthorizedException('Invalid (email) credentials');
 
     const isValid = await this.bcryptService.compare(password, user.password);
-    if (!isValid) throw new UnauthorizedException('Invalid credentials');
+    if (!isValid) throw new UnauthorizedException('Invalid (password) credentials');
 
     const { accessToken, refreshToken } = await this.tokensService.getTokens(
       user.id,
