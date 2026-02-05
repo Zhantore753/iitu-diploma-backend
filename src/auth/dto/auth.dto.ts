@@ -11,7 +11,29 @@ import {
 } from 'class-validator';
 import { UserType } from 'generated/prisma';
 
-// Добавить к существующим DTO
+export class ChangePasswordDto {
+  @ApiProperty({ 
+    example: 'OldPassword123!', 
+    description: 'Текущий пароль пользователя' 
+  })
+  @IsString()
+  currentPassword: string;
+
+  @ApiProperty({ 
+    example: 'NewSafePass2026', 
+    description: 'Новый пароль' 
+  })
+  @IsString()
+  @MinLength(8)
+  newPassword: string;
+
+  @ApiProperty({ 
+    example: 'NewSafePass2026', 
+    description: 'Подтверждение нового пароля' 
+  })
+  @IsString()
+  confirmPassword: string;
+}
 
 export class ForgotPasswordDto {
   @ApiProperty({
@@ -190,4 +212,33 @@ export class CompleteRegistrationDto {
   @IsString()
   @Length(0, 300)
   bio?: string;
+}
+
+export class UserProfileDto {
+  @ApiProperty({ example: 1 })
+  id: number;
+
+  @ApiProperty({ example: 'user@example.com' })
+  email: string;
+
+  @ApiProperty({ example: 'John' })
+  firstName: string;
+
+  @ApiProperty({ example: 'Johnny', nullable: true })
+  lastName?: string;
+
+  @ApiProperty({ example: '+79991234567', nullable: true })
+  phone?: string;
+
+  @ApiProperty({ example: 'https://storage.com/avatar.png', nullable: true })
+  avatar?: string;
+
+  @ApiProperty({ enum: UserType, example: UserType.admin })
+  userType: UserType;
+
+  @ApiProperty({ example: true })
+  isVerified: boolean;
+
+  @ApiProperty({ example: '2026-01-01T00:00:00.000Z' })
+  createdAt: Date;
 }

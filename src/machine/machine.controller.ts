@@ -8,9 +8,12 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiOkResponse,
@@ -27,6 +30,7 @@ import { FindAllMachinesDto } from './dto/findAll.dto';
 import { PaginatedMachineResponseDto } from './dto/response.dto';
 import { UpdateMachineDto } from './dto/update-machine.dto';
 import { MachineService } from './machine.service';
+import { FilesInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('machine')
 @Controller('machine')
@@ -62,48 +66,31 @@ export class MachineController {
 
   @Post()
   @ApiBearerAuth()
-  @ApiCreatedResponse({ description: 'Machine successfully created' })
-  @ApiForbiddenResponse({ description: 'User not authenticated' })
-  @ApiOperation({ summary: 'Create a new machine' })
+  @UseInterceptors(FilesInterceptor('photos', 10))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Создать машину с фото (до 10 шт)' })
   async create(
     @User() user: any,
     @Body() dto: CreateMachineDto,
-  ): Promise<Machine> {
-    const data: Prisma.MachineCreateInput = {
-      ...dto,
-      owner: {
-        connect: {
-          id: user.sub,
-        },
-      },
-      category: {
-        create: undefined,
-        connectOrCreate: undefined,
-        connect: undefined
-      },
-      region: {
-        create: undefined,
-        connectOrCreate: undefined,
-        connect: undefined
-      }
-    };
-    return await this.machineService.create(data);
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    return await this.machineService.createWithPhotos(user.sub, dto, files);
   }
 
-  @Patch(':id')
-  @ApiBearerAuth()
-  @ApiOkResponse({ description: 'Machine successfully updated' })
-  @ApiForbiddenResponse({
-    description: 'User not authorized to update this machine',
-  })
-  @ApiOperation({ summary: 'Update a machine' })
-  async update(
-    @Param('id', ParseIntPipe) id: number,
-    @User() user: any,
-    @Body() dto: UpdateMachineDto,
-  ): Promise<Machine> {
-    return await this.machineService.update(id, user.sub, dto);
-  }
+  // @Patch(':id')
+  // @ApiBearerAuth()
+  // @ApiOkResponse({ description: 'Machine successfully updated' })
+  // @ApiForbiddenResponse({
+  //   description: 'User not authorized to update this machine',
+  // })
+  // @ApiOperation({ summary: 'Update a machine' })
+  // async update(
+  //   @Param('id', ParseIntPipe) id: number,
+  //   @User() user: any,
+  //   @Body() dto: UpdateMachineDto,
+  // ): Promise<Machine> {
+  //   return await this.machineService.update(id, user.sub, dto);
+  // }
 
   @Get(':id')
   @Public()

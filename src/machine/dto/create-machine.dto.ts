@@ -1,42 +1,71 @@
-// create-machine.dto.ts
+// src/machine/dto/create-machine.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import {
-    IsDecimal,
-    IsIn,
-    IsNumber,
-    IsPositive,
-    IsString,
-    Length
-} from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateMachineDto {
-  @ApiProperty({ example: 'Excavator X-200', minLength: 2, maxLength: 50 })
+  @ApiProperty({ example: 'Трактор John Deere 8R' })
   @IsString()
-  @Length(2, 50)
   name: string;
 
-  @ApiProperty({
-    example: 'Heavy-duty excavator for construction work',
-    minLength: 10,
-    maxLength: 500,
-  })
+  @ApiProperty({ example: 1 })
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  categoryId: number;
+
+  @ApiProperty({ example: 'Мощный трактор для вспашки' })
   @IsString()
-  @Length(10, 500)
   description: string;
 
-  @ApiProperty({ example: 150.0, minimum: 0 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive()
+  @ApiProperty({ example: '340 л.с.', required: false })
+  @IsOptional()
+  @IsString()
+  power?: string;
+
+  @ApiProperty({ example: 'Иванов И.И.', required: false })
+  @IsOptional()
+  @IsString()
+  executors?: string;
+
+  @ApiProperty({ example: '8R 340', required: false })
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiProperty({ example: 2023, required: false })
+  @Transform(({ value }) => Number(value))
+  @IsOptional()
+  @IsInt()
+  year?: number;
+
+  @ApiProperty({ example: 'Алматы, ул. Абая 10' })
+  @IsString()
+  location: string;
+
+  @ApiProperty({ example: 1 })
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  regionId: number;
+
+  @ApiProperty({ example: 50000 })
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
   pricePerDay: number;
 
-  @ApiProperty({ example: 'KZT', enum: ['KZT', 'USD', 'EUR'] })
-  @IsString()
-  @IsIn(['KZT', 'USD', 'EUR'])
-  @Length(3, 3)
-  currency: string = 'KZT';
+  @ApiProperty({ 
+    example: [1, 2], 
+    type: [Number], 
+    required: false,
+    description: 'ID приспособлений' 
+  })
+  @Transform(({ value }) => {
+    if (Array.isArray(value)) return value.map(Number);
+    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    return value ? [Number(value)] : [];
+  })
+  @IsOptional()
+  attachmentIds?: number[];
 
-  @ApiProperty({ example: 'Almaty, Kazakhstan', minLength: 2, maxLength: 50 })
-  @IsString()
-  @Length(2, 50)
-  location: string;
+  @ApiProperty({ type: 'array', items: { type: 'string', format: 'binary' } })
+  photos: any[];
 }

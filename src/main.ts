@@ -3,16 +3,22 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import * as express from 'express';
 import { AppModule } from './app.module';
-import { ConsoleLogger } from '@nestjs/common';
+import { ConsoleLogger, ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  
   app.enableCors();
   app.use(cookieParser());
 
   app.use('/uploads', express.static('uploads'));
 
-
+// main.ts
+app.useGlobalPipes(new ValidationPipe({ 
+  transform: true, 
+  transformOptions: { enableImplicitConversion: true } // Это заставит NestJS пытаться конвертировать типы сам
+}));
 
   const config = new DocumentBuilder()
     .setTitle('Agri-rental platform')

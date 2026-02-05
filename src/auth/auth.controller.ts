@@ -24,15 +24,17 @@ import { AuthService } from './auth.service';
 import { Roles } from './decorators/roles.decorator';
 import {
   AuthDto,
+  ChangePasswordDto,
   CompleteRegistrationDto,
   ForgotPasswordDto,
   RegisterInitDto,
   ResetPasswordDto,
+  UserProfileDto,
   VerifyEmailDto,
 } from './dto/auth.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -42,15 +44,11 @@ export class AuthController {
   ) {}
 
   @Post('password/change')
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async changePassword(
     @User() user: any,
-    @Body()
-    body: {
-      currentPassword: string;
-      newPassword: string;
-      confirmPassword: string;
-    },
+    @Body() body: ChangePasswordDto, // Используем класс вместо инлайна
   ) {
     if (body.newPassword !== body.confirmPassword) {
       throw new BadRequestException('Пароли не совпадают');
@@ -63,6 +61,26 @@ export class AuthController {
     );
 
     return { message: 'Пароль успешно изменен' };
+  }
+
+  @Get('me')
+  @ApiBearerAuth() // Указывает, что нужен JWT токен
+  @ApiOperation({ 
+    summary: 'Получить профиль текущего пользователя',
+    description: 'Возвращает данные пользователя на основании Access Token' 
+  })
+  @ApiOkResponse({ 
+    description: 'Данные профиля успешно получены',
+    type: UserProfileDto 
+  })
+  @ApiResponse({ status: 401, description: 'Токен невалиден или отсутствует' })
+  async getMe(@User() user: any) {
+    // user.sub берется из вашего JWT Guard / Decorator
+    const userData = await this.authService.getProfile(user.sub);
+    
+    // Исключаем пароль перед отправкой (хотя сервис тоже должен это делать)
+    const { password, ...result } = userData;
+    return result;
   }
 
   // Эндпоинты восстановления пароля
@@ -170,7 +188,6 @@ export class AuthController {
       },
     },
   })
-  
   async completeRegistration(
     @UploadedFile() avatar: Express.Multer.File,
     @Body() body: CompleteRegistrationDto,

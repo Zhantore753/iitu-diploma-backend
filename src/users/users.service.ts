@@ -30,7 +30,7 @@ export class UsersService {
     try {
       const cached = await this.cacheManager.get<User>(cacheKey);
       if (cached) {
-        this.logger.debug(`Cache hit for user email: ${email}`);
+        this.logger.debug(`Cache hit for user email: ${email} ${cached.id}`);
         return cached;
       }
     } catch (error) {

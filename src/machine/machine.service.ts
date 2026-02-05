@@ -9,6 +9,8 @@ import { ConfigService } from '@nestjs/config';
 import { Machine, Prisma } from 'generated/prisma';
 import { IMachineRepository } from './machine.repository.interface';
 import { PaginatedMachineResponseDto } from './dto/response.dto';
+import { CreateMachineDto } from './dto/create-machine.dto';
+import { FileService } from 'src/file/file.service';
 
 @Injectable()
 export class MachineService {
@@ -17,6 +19,7 @@ export class MachineService {
     private readonly machineRepo: IMachineRepository,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private configService: ConfigService,
+    private readonly fileService: FileService,
   ) {}
 
   async create(data: Prisma.MachineCreateInput): Promise<Machine> {
@@ -29,6 +32,56 @@ export class MachineService {
     }
   }
 
+  async createWithPhotos(
+    ownerId: number,
+    dto: CreateMachineDto,
+    files: Express.Multer.File[],
+  ) {
+    // 1. Загрузка фото
+    const photoUrls = await Promise.all(
+      files.map((file) => this.fileService.upload(file, 'machines')),
+    );
+
+    // 2. Деструктуризация (извлекаем всё, что нужно обработать вручную)
+    const {
+      attachmentIds,
+      categoryId,
+      regionId,
+      year,
+      pricePerDay,
+      photos,
+      ...rest
+    } = dto;
+
+    // 3. Формируем объект для Prisma
+    const data: Prisma.MachineCreateInput = {
+      ...rest,
+      year: year ? Number(year) : undefined,
+      pricePerDay: Number(pricePerDay),
+      owner: { connect: { id: ownerId } },
+      category: { connect: { id: Number(categoryId) } },
+      region: { connect: { id: Number(regionId) } },
+      // Связи Many-to-Many
+      attachments:
+        attachmentIds && attachmentIds.length > 0
+          ? {
+              create: attachmentIds
+                .filter((id) => !isNaN(id))
+                .map((id) => ({
+                  attachment: { connect: { id } },
+                })),
+            }
+          : undefined,
+      // Записи фото
+      photos: {
+        create: photoUrls.map((url) => ({ url })),
+      },
+    };
+
+    const result = await this.machineRepo.create(data);
+    await this.invalidateListCaches(); // Очистка кэша списка
+    return result;
+  }
   async findAll(
     where?: Prisma.MachineWhereInput,
     orderBy?: Prisma.MachineOrderByWithRelationInput,

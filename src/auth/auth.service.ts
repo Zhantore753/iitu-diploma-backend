@@ -35,6 +35,14 @@ export class AuthService {
     private readonly logger: Logger,
   ) {}
 
+  async getProfile(userId: number) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+    return user;
+  }
+
   async forgotPassword(email: string): Promise<void> {
     // Проверяем существует ли пользователь
     const user = await this.usersService.findByEmail(email);
@@ -95,16 +103,18 @@ export class AuthService {
     }
   }
 
-   async resetPassword(token: string, newPassword: string): Promise<void> {
+  async resetPassword(token: string, newPassword: string): Promise<void> {
     // Проверяем токен
     const isValid = await this.verifyResetToken(token);
     if (!isValid) {
-      throw new BadRequestException('Неверный или просроченный токен сброса пароля');
+      throw new BadRequestException(
+        'Неверный или просроченный токен сброса пароля',
+      );
     }
 
     // Декодируем токен для получения email
-    const payload = await this.jwtService.decode(token) as any;
-    
+    const payload = (await this.jwtService.decode(token)) as any;
+
     // Находим пользователя
     const user = await this.usersService.findByEmail(payload.email);
     if (!user) {
@@ -128,9 +138,9 @@ export class AuthService {
   }
 
   async changePassword(
-    userId: number, 
-    currentPassword: string, 
-    newPassword: string
+    userId: number,
+    currentPassword: string,
+    newPassword: string,
   ): Promise<void> {
     const user = await this.usersService.findById(userId);
     if (!user) {
@@ -138,7 +148,10 @@ export class AuthService {
     }
 
     // Проверяем текущий пароль
-    const isValid = await this.bcryptService.compare(currentPassword, user.password);
+    const isValid = await this.bcryptService.compare(
+      currentPassword,
+      user.password,
+    );
     if (!isValid) {
       throw new BadRequestException('Текущий пароль неверен');
     }
@@ -147,9 +160,14 @@ export class AuthService {
     this.validatePassword(newPassword);
 
     // Проверяем, что новый пароль отличается от старого
-    const isSamePassword = await this.bcryptService.compare(newPassword, user.password);
+    const isSamePassword = await this.bcryptService.compare(
+      newPassword,
+      user.password,
+    );
     if (isSamePassword) {
-      throw new BadRequestException('Новый пароль должен отличаться от старого');
+      throw new BadRequestException(
+        'Новый пароль должен отличаться от старого',
+      );
     }
 
     // Обновляем пароль
@@ -162,30 +180,45 @@ export class AuthService {
     this.logger.log(`Password changed for user: ${user.email}`);
   }
 
-
-    private validatePassword(password: string): void {
+  private validatePassword(password: string): void {
     if (password.length < 8) {
-      throw new BadRequestException('Пароль должен содержать минимум 8 символов');
+      throw new BadRequestException(
+        'Пароль должен содержать минимум 8 символов',
+      );
     }
 
     if (!/[A-Z]/.test(password)) {
-      throw new BadRequestException('Пароль должен содержать хотя бы одну заглавную букву');
+      throw new BadRequestException(
+        'Пароль должен содержать хотя бы одну заглавную букву',
+      );
     }
 
     if (!/[a-z]/.test(password)) {
-      throw new BadRequestException('Пароль должен содержать хотя бы одну строчную букву');
+      throw new BadRequestException(
+        'Пароль должен содержать хотя бы одну строчную букву',
+      );
     }
 
     if (!/[0-9]/.test(password)) {
-      throw new BadRequestException('Пароль должен содержать хотя бы одну цифру');
+      throw new BadRequestException(
+        'Пароль должен содержать хотя бы одну цифру',
+      );
     }
 
     // Проверка на распространенные слабые пароли
     const weakPasswords = [
-      'password', '12345678', 'qwerty', 'admin123', 'password123',
-      'letmein', 'welcome', 'monkey', 'sunshine', 'iloveyou'
+      'password',
+      '12345678',
+      'qwerty',
+      'admin123',
+      'password123',
+      'letmein',
+      'welcome',
+      'monkey',
+      'sunshine',
+      'iloveyou',
     ];
-    
+
     if (weakPasswords.includes(password.toLowerCase())) {
       throw new BadRequestException('Пароль слишком простой, выберите другой');
     }
@@ -419,7 +452,8 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Invalid (email) credentials');
 
     const isValid = await this.bcryptService.compare(password, user.password);
-    if (!isValid) throw new UnauthorizedException('Invalid (password) credentials');
+    if (!isValid)
+      throw new UnauthorizedException('Invalid (password) credentials');
 
     const { accessToken, refreshToken } = await this.tokensService.getTokens(
       user.id,
