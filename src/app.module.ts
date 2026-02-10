@@ -24,6 +24,8 @@ import { OtpModule } from './otp/otp.module';
 import { RedisModule } from './redis/redis.module';
 import { FileModule } from './file/file.module';
 import { JwtModule } from '@nestjs/jwt';
+import { MachineCategoryModule } from './machine-category/machine-category.module';
+import { RegionModule } from './region/region.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { JwtModule } from '@nestjs/jwt';
     OtpModule,
     RedisModule,
     FileModule,
+    MachineCategoryModule,
+    RegionModule,
   ],
   controllers: [AppController],
   providers: [
