@@ -18,6 +18,10 @@ import { TransformInterceptor } from './transform/transform.interceptor';
 import { UsersModule } from './users/users.module';
 import { CacheConfigModule } from './cache/cache-config/cache-config.module';
 import { RentalModule } from './rental/rental.module';
+import { CategoryModule } from './category/category.module';
+import { ChatModule } from './chat/chat.module';
+import { AiModule } from './ai/ai.module';
+import { ReviewModule } from './review/review.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AdminModule } from './admin/admin.module';
 import { OtpModule } from './otp/otp.module';
@@ -49,6 +53,10 @@ import { JwtModule } from '@nestjs/jwt';
     MachineModule,
     CacheConfigModule,
     RentalModule,
+    CategoryModule,
+    ChatModule,
+    AiModule,
+    ReviewModule,
     AnalyticsModule,
     AdminModule,
     OtpModule,
