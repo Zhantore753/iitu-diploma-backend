@@ -217,6 +217,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Public()
   @UseGuards(RefreshTokenGuard)
   @HttpCode(200)
   async refresh(@Req() req: Request, @User() user: any, @Res() res: Response) {
@@ -227,7 +228,7 @@ export class AuthController {
 
     this.setCookies(res, newRefreshToken);
 
-    return { accessToken };
+    res.json({ accessToken });
   }
 
   @Post('logout')
