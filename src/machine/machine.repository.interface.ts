@@ -22,4 +22,6 @@ export abstract class IMachineRepository {
   abstract groupBy<T extends Prisma.MachineGroupByArgs>(
     options: Prisma.SelectSubset<T, Prisma.MachineGroupByArgs>,
   ): Promise<Prisma.GetMachineGroupByPayload<T>>;
+
+  abstract findByOwnerId(ownerId: number): Promise<Machine[]>;
 }
