@@ -1,5 +1,4 @@
 import { Prisma, Rental } from 'generated/prisma';
-import { BookRentalDto } from './dto/book-rental.dto';
 
 export abstract class IRentalRepository {
   abstract create(data: Prisma.RentalCreateInput): Promise<Rental>;
@@ -10,10 +9,7 @@ export abstract class IRentalRepository {
     take?: number,
   ): Promise<Rental[]>;
 
-  abstract findById<T extends Prisma.RentalInclude | undefined>(
-    id: number,
-    include?: T,
-  ): Promise<Prisma.RentalGetPayload<{ include: T }> | null>;
+  abstract findById(id: number, include?: any): Promise<Rental | null>;
   abstract update(id: number, data: Prisma.RentalUpdateInput): Promise<Rental>;
   abstract delete(id: number): Promise<Rental>;
   abstract count(where?: Prisma.RentalWhereInput): Promise<number>;
@@ -24,4 +20,6 @@ export abstract class IRentalRepository {
   abstract groupBy<T extends Prisma.RentalGroupByArgs>(
     options: Prisma.SelectSubset<T, Prisma.RentalGroupByArgs>,
   ): Promise<Prisma.GetRentalGroupByPayload<T>>;
+
+  abstract hasConflict(machineId: number, startDate: Date, endDate: Date): Promise<boolean>;
 }

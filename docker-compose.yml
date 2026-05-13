@@ -6,7 +6,7 @@ services:
     container_name: nest-postgres
     restart: always
     ports:
-      - "51213:5432"
+      - '5433:5432'
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -21,7 +21,7 @@ services:
     container_name: nest-redis
     restart: always
     ports:
-      - "51214:6379"
+      - '6380:6379'
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data

@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Machine } from 'generated/prisma';
 
 export class PaginatedMachineResponseDto {
   @ApiProperty()
-  data: Machine[];
+  data: Record<string, any>[];
 
   @ApiProperty({ example: 150 })
   total: number;

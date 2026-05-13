@@ -1,7 +1,6 @@
-// src/machine/dto/create-machine.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsDate, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateMachineDto {
   @ApiProperty({ example: 'Трактор John Deere 8R' })
@@ -42,6 +41,30 @@ export class CreateMachineDto {
   @IsString()
   location: string;
 
+  @ApiProperty({ example: 43.238949, required: false })
+  @Transform(({ value }) => (value !== undefined ? Number(value) : undefined))
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiProperty({ example: 76.889709, required: false })
+  @Transform(({ value }) => (value !== undefined ? Number(value) : undefined))
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @ApiProperty({ example: '2026-03-01', required: false })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  availabilityStart?: Date;
+
+  @ApiProperty({ example: '2026-11-30', required: false })
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  availabilityEnd?: Date;
+
   @ApiProperty({ example: 1 })
   @Transform(({ value }) => Number(value))
   @IsInt()
@@ -52,15 +75,15 @@ export class CreateMachineDto {
   @IsNumber()
   pricePerDay: number;
 
-  @ApiProperty({ 
-    example: [1, 2], 
-    type: [Number], 
+  @ApiProperty({
+    example: [1, 2],
+    type: [Number],
     required: false,
-    description: 'ID приспособлений' 
+    description: 'ID приспособлений',
   })
   @Transform(({ value }) => {
     if (Array.isArray(value)) return value.map(Number);
-    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    if (typeof value === 'string') return value.split(',').map((v) => Number(v.trim()));
     return value ? [Number(value)] : [];
   })
   @IsOptional()

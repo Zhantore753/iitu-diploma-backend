@@ -23,8 +23,7 @@ enum UserType {
 
 enum RentalStatus {
   pending
-  provider_confirmed
-  active
+  confirmed
   completed
   cancelled
 }
@@ -63,11 +62,14 @@ model User {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  machines      Machine[]
-  rentals       Rental[]       @relation("UserRentals")
-  messages      Message[]
-  notifications Notification[]
-  refreshTokens RefreshToken[]
+  machines            Machine[]
+  rentals             Rental[]       @relation("UserRentals")
+  notifications       Notification[]
+  refreshTokens       RefreshToken[]
+  sentMessages        Message[]
+  conversationsAsP1   Conversation[] @relation("ConvP1")
+  conversationsAsP2   Conversation[] @relation("ConvP2")
+  reviews             Review[]
 
   @@index([email])
   @@map("users")
@@ -86,6 +88,10 @@ model Machine {
   loadCapacity     Int?
   totalWeight      Int?
   location         String
+  latitude         Float?
+  longitude        Float?
+  availabilityStart DateTime?
+  availabilityEnd   DateTime?
   regionId         Int
   region           Region      @relation(fields: [regionId], references: [id])
   pricePerDay      Decimal
@@ -95,6 +101,8 @@ model Machine {
   attachments      AttachmentOnMachine[]
   photos           MachinePhoto[]
   rentals          Rental[]
+  conversations    Conversation[]
+  reviews          Review[]
   isAvailable      Boolean     @default(true)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
@@ -105,11 +113,22 @@ model Machine {
 }
 
 model MachineCategory {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
+  id       Int            @id @default(autoincrement())
+  name     String         @unique
   machines Machine[]
+  models   MachineModel[]
 
   @@map("machine_categories")
+}
+
+model MachineModel {
+  id         Int             @id @default(autoincrement())
+  name       String
+  categoryId Int
+  category   MachineCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([categoryId])
+  @@map("machine_models")
 }
 
 model Region {
@@ -150,47 +169,75 @@ model MachinePhoto {
 }
 
 model Rental {
-  id            Int           @id @default(autoincrement())
-  machineId     Int
-  machine       Machine       @relation(fields: [machineId], references: [id])
-  renterId      Int
-  renter        User          @relation("UserRentals", fields: [renterId], references: [id])
-  startDate     DateTime
-  endDate       DateTime
-  totalPrice    Decimal
-  status        RentalStatus  @default(pending)
-  paymentStatus PaymentStatus @default(not_paid)
+  id                   Int           @id @default(autoincrement())
+  machineId            Int
+  machine              Machine       @relation(fields: [machineId], references: [id])
+  renterId             Int
+  renter               User          @relation("UserRentals", fields: [renterId], references: [id])
+  startDate            DateTime
+  endDate              DateTime
+  rentalDays           Int
+  totalPrice           Decimal
+  status               RentalStatus  @default(pending)
+  paymentStatus        PaymentStatus @default(not_paid)
+  machineLatitude      Float?
+  machineLongitude     Float?
+  baseMachineLatitude  Float?
+  baseMachineLongitude Float?
+  trackingUpdatedAt    DateTime?
 
-  chat          Chat?
+  statusHistory RentalStatusHistory[]
+  review        Review?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  @@unique([machineId, startDate])
   @@index([machineId, renterId])
   @@index([status])
   @@map("rentals")
 }
 
-model Chat {
-  id        Int      @id @default(autoincrement())
-  rentalId  Int      @unique
-  rental    Rental   @relation(fields: [rentalId], references: [id])
-  messages  Message[]
-  createdAt DateTime @default(now())
+model RentalStatusHistory {
+  id        Int          @id @default(autoincrement())
+  rentalId  Int
+  rental    Rental       @relation(fields: [rentalId], references: [id])
+  status    RentalStatus
+  changedAt DateTime     @default(now())
 
-  @@map("chats")
+  @@index([rentalId])
+  @@map("rental_status_history")
+}
+
+model Conversation {
+  id             Int       @id @default(autoincrement())
+  machineId      Int?
+  machine        Machine?  @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  participant1Id Int
+  participant2Id Int
+  participant1   User      @relation("ConvP1", fields: [participant1Id], references: [id])
+  participant2   User      @relation("ConvP2", fields: [participant2Id], references: [id])
+  messages       Message[]
+  // per-participant last-read timestamps for unread tracking
+  p1LastReadAt   DateTime?
+  p2LastReadAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([participant1Id, participant2Id, machineId])
+  @@index([participant1Id])
+  @@index([participant2Id])
+  @@map("conversations")
 }
 
 model Message {
-  id        Int      @id @default(autoincrement())
-  chatId    Int
-  chat      Chat     @relation(fields: [chatId], references: [id])
-  senderId  Int
-  sender    User     @relation(fields: [senderId], references: [id])
-  text      String
-  createdAt DateTime @default(now())
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       Int
+  sender         User         @relation(fields: [senderId], references: [id])
+  text           String
+  createdAt      DateTime     @default(now())
 
-  @@index([chatId])
+  @@index([conversationId])
   @@map("messages")
 }
 
@@ -206,6 +253,23 @@ model Notification {
   @@index([userId])
   @@index([type])
   @@map("notifications")
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  machineId Int
+  machine   Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  renterId  Int
+  renter    User     @relation(fields: [renterId], references: [id])
+  rentalId  Int      @unique
+  rental    Rental   @relation(fields: [rentalId], references: [id])
+  rating    Int
+  text      String?
+  createdAt DateTime @default(now())
+
+  @@unique([machineId, renterId])
+  @@index([machineId])
+  @@map("reviews")
 }
 
 model RefreshToken {
