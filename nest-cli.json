@@ -7,7 +7,8 @@
     "assets": [
       {
         "include": "../generated/**/*",
-        "watchAssets": false
+        "outDir": "dist/generated",
+        "watchAssets": true
       }
     ]
   }
