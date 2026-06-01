@@ -171,27 +171,29 @@ async function downloadImage(fileName: string, destination: string) {
 
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
-  const response = await fetch(commonsFileUrl(fileName), {
-    headers: {
-      'User-Agent': 'agri-rental-platform-seed/1.0',
-    },
-  });
+      const response = await fetch(commonsFileUrl(fileName), {
+        headers: {
+          'User-Agent': 'agri-rental-platform-seed/1.0',
+        },
+      });
 
-  if (!response.ok) {
-    throw new Error(`Failed to download ${fileName}: ${response.status}`);
-  }
+      if (!response.ok) {
+        throw new Error(`Failed to download ${fileName}: ${response.status}`);
+      }
 
-  const contentType = response.headers.get('content-type') ?? '';
-  if (!contentType.includes('image/')) {
-    throw new Error(`Unexpected content type for ${fileName}: ${contentType}`);
-  }
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('image/')) {
+        throw new Error(
+          `Unexpected content type for ${fileName}: ${contentType}`,
+        );
+      }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length < 10_000) {
-    throw new Error(`Downloaded image is too small: ${fileName}`);
-  }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length < 10_000) {
+        throw new Error(`Downloaded image is too small: ${fileName}`);
+      }
 
-  await writeFile(destination, buffer);
+      await writeFile(destination, buffer);
       return;
     } catch (error) {
       lastError = error;
@@ -291,7 +293,9 @@ async function findOrCreateMachine(data: {
   ownerId: number;
   isAvailable: boolean;
 }) {
-  const existing = await prisma.machine.findFirst({ where: { name: data.name } });
+  const existing = await prisma.machine.findFirst({
+    where: { name: data.name },
+  });
   if (existing) {
     return prisma.machine.update({ where: { id: existing.id }, data });
   }
@@ -315,7 +319,9 @@ async function findOrCreateAttachmentOnMachine(
     where: { machineId, attachmentId },
   });
   if (existing) return existing;
-  return prisma.attachmentOnMachine.create({ data: { machineId, attachmentId } });
+  return prisma.attachmentOnMachine.create({
+    data: { machineId, attachmentId },
+  });
 }
 
 async function findOrCreateRental(data: {
@@ -347,7 +353,10 @@ async function findOrCreateRental(data: {
   return prisma.rental.create({ data });
 }
 
-async function findOrCreateStatusHistory(rentalId: number, status: RentalStatus) {
+async function findOrCreateStatusHistory(
+  rentalId: number,
+  status: RentalStatus,
+) {
   const existing = await prisma.rentalStatusHistory.findFirst({
     where: { rentalId, status },
   });
@@ -519,7 +528,8 @@ async function main() {
   for (let i = 0; i < 42; i++) {
     const category = pick(categoryRecords, i);
     const region = pick(regionRecords, i + 3);
-    const regionSeed = regions.find((item) => item.name === region.name) ?? regions[0];
+    const regionSeed =
+      regions.find((item) => item.name === region.name) ?? regions[0];
     const owner = pick(providers, i);
     const model = pick(modelsByCategory[category.name] ?? ['Agri Model'], i);
     const price = 28000 + (i % 9) * 9500 + Math.floor(i / 9) * 3000;
@@ -530,10 +540,14 @@ async function main() {
         'Подходит для сезонных работ, можно менять все поля и проверять связи.',
       categoryId: category.id,
       power: `${120 + (i % 8) * 35} л.с.`,
-      executors: i % 3 === 0 ? `${owner.firstName} ${owner.lastName}` : undefined,
+      executors:
+        i % 3 === 0 ? `${owner.firstName} ${owner.lastName}` : undefined,
       model,
       year: 2017 + (i % 8),
-      loadCapacity: category.name === 'Прицепы' || category.name === 'Погрузчики' ? 3500 + i * 120 : undefined,
+      loadCapacity:
+        category.name === 'Прицепы' || category.name === 'Погрузчики'
+          ? 3500 + i * 120
+          : undefined,
       totalWeight: 4200 + i * 180,
       location: `${region.name}, база ${i + 1}`,
       latitude: regionSeed.lat + (i % 5) * 0.07,
@@ -600,11 +614,20 @@ async function main() {
       totalPrice: Number(machine.pricePerDay) * rentalDays,
       status,
       paymentStatus,
-      machineLatitude: machine.latitude ? Number(machine.latitude) + 0.01 : undefined,
-      machineLongitude: machine.longitude ? Number(machine.longitude) + 0.01 : undefined,
-      baseMachineLatitude: machine.latitude ? Number(machine.latitude) : undefined,
-      baseMachineLongitude: machine.longitude ? Number(machine.longitude) : undefined,
-      trackingUpdatedAt: status === RentalStatus.confirmed ? daysFromNow(-1) : undefined,
+      machineLatitude: machine.latitude
+        ? Number(machine.latitude) + 0.01
+        : undefined,
+      machineLongitude: machine.longitude
+        ? Number(machine.longitude) + 0.01
+        : undefined,
+      baseMachineLatitude: machine.latitude
+        ? Number(machine.latitude)
+        : undefined,
+      baseMachineLongitude: machine.longitude
+        ? Number(machine.longitude)
+        : undefined,
+      trackingUpdatedAt:
+        status === RentalStatus.confirmed ? daysFromNow(-1) : undefined,
     });
     rentals.push(rental);
 
@@ -612,7 +635,10 @@ async function main() {
     if (status !== RentalStatus.pending) {
       await findOrCreateStatusHistory(rental.id, RentalStatus.confirmed);
     }
-    if (status === RentalStatus.completed || status === RentalStatus.cancelled) {
+    if (
+      status === RentalStatus.completed ||
+      status === RentalStatus.cancelled
+    ) {
       await findOrCreateStatusHistory(rental.id, status);
     }
 
@@ -636,7 +662,9 @@ async function main() {
   for (let i = 0; i < 30; i++) {
     const machine = pick(machines, i);
     const farmer = pick(farmers, i + 4);
-    const owner = providers.find((provider) => provider.id === machine.ownerId) ?? providers[0];
+    const owner =
+      providers.find((provider) => provider.id === machine.ownerId) ??
+      providers[0];
     const conversation = await findOrCreateConversation(
       owner.id,
       farmer.id,

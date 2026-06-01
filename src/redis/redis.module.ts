@@ -10,24 +10,29 @@ import { RedisService } from './redis.service';
     {
       provide: 'REDIS_CLIENT',
       useFactory: (configService: ConfigService) => {
-        const redisHost = configService.get<string>('REDIS_HOST', 'localhost');
-        const redisPort = configService.get<number>('REDIS_PORT', 6379);
-        const redisPassword = configService.get<string>('REDIS_PASSWORD');
-        const redisDb = configService.get<number>('REDIS_DB', 0);
-        
-        const redis = new Redis({
-          host: redisHost,
-          port: redisPort,
-          password: redisPassword,
-          db: redisDb,
-          retryStrategy: (times) => {
+        const commonOptions = {
+          retryStrategy: (times: number) => {
             const delay = Math.min(times * 50, 2000);
             return delay;
           },
           maxRetriesPerRequest: 3,
           enableReadyCheck: true,
           lazyConnect: true,
-        });
+        };
+
+        // Prefer a single connection string (REDIS_URL) when provided —
+        // managed hosts like Railway expose Redis this way. Fall back to
+        // discrete host/port for local docker-compose.
+        const redisUrl = configService.get<string>('REDIS_URL');
+        const redis = redisUrl
+          ? new Redis(redisUrl, commonOptions)
+          : new Redis({
+              host: configService.get<string>('REDIS_HOST', 'localhost'),
+              port: configService.get<number>('REDIS_PORT', 6379),
+              password: configService.get<string>('REDIS_PASSWORD'),
+              db: configService.get<number>('REDIS_DB', 0),
+              ...commonOptions,
+            });
 
         // Обработчики событий
         redis.on('connect', () => {
