@@ -68,14 +68,27 @@ App service → **Settings** → **Volumes** → **New Volume**, mount path:
 App service → **Settings** → **Networking** → **Generate Domain**. You'll get a
 `https://<name>.up.railway.app` URL. Swagger docs are at `/api`.
 
-## 7. (Optional) Seed the database
+## 7. Seed the database (demo data, ≥20 rows per table)
 
-Migrations run automatically. To load seed data once, open the service shell
-(or `railway run` locally with the project linked) and run:
+Migrations run automatically. The seed ([prisma/seed.ts](prisma/seed.ts)) loads
+demo users, machines, rentals, reviews, etc. — at least 20 rows per table. It's
+**idempotent** (safe to run repeatedly).
+
+**Easiest (no shell needed):** set `SEED_ON_DEPLOY=true` in the service Variables,
+then redeploy. The start command runs the compiled seed once before booting.
+Set it back to `false` afterward so future deploys boot faster.
+
+**Or run it on demand** (service shell, or `railway run` locally with the project linked):
 
 ```bash
-npm run seed
+npm run seed:prod   # runs the compiled seed (dist/prisma/seed.js — no ts-node needed)
 ```
+
+The seed downloads sample machine photos to the `/app/uploads` volume; if that
+isn't available it transparently falls back to remote image URLs, so seeding
+never fails on that account.
+
+Default admin login after seeding: `admin@agri-rental.local` / `Admin12345!`
 
 ## Local development
 

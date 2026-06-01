@@ -32,6 +32,15 @@ const regions = [
   { name: 'Абайская область', lat: 50.411, lng: 80.227 },
   { name: 'Жетысуская область', lat: 45.015, lng: 78.373 },
   { name: 'Улытауская область', lat: 47.783, lng: 67.7 },
+  { name: 'Актобе', lat: 50.283, lng: 57.167 },
+  { name: 'Атырау', lat: 47.117, lng: 51.883 },
+  { name: 'Тараз', lat: 42.9, lng: 71.366 },
+  { name: 'Усть-Каменогорск', lat: 49.948, lng: 82.628 },
+  { name: 'Семей', lat: 50.411, lng: 80.227 },
+  { name: 'Костанай', lat: 53.214, lng: 63.624 },
+  { name: 'Петропавловск', lat: 54.873, lng: 69.15 },
+  { name: 'Кокшетау', lat: 53.283, lng: 69.383 },
+  { name: 'Талдыкорган', lat: 45.015, lng: 78.373 },
 ];
 
 const modelsByCategory: Record<string, string[]> = {
@@ -77,6 +86,48 @@ const modelsByCategory: Record<string, string[]> = {
   Жатки: ['John Deere 640FD', 'CLAAS VARIO 930', 'Case IH 3050'],
   Погрузчики: ['JCB 435 S', 'Bobcat S770', 'Manitou MLT 741'],
   Прицепы: ['Wielton NS3 S/27', 'Kroger Agroliner HKD 402', 'Fliegl ASW 271'],
+  'Кормоуборочные комбайны': [
+    'CLAAS JAGUAR 990',
+    'John Deere 9700',
+    'New Holland FR780',
+  ],
+  'Свеклоуборочные комбайны': [
+    'Holmer Terra Dos T4',
+    'Ropa Tiger 6S',
+    'Grimme REXOR 630',
+  ],
+  'Картофелеуборочные комбайны': [
+    'Grimme SE 260',
+    'AVR Spirit 6200',
+    'Ropa Keiler 2',
+  ],
+  'Разбрасыватели удобрений': [
+    'Amazone ZA-TS 4200',
+    'Kuhn Axis 50.2',
+    'Rauch AXENT 100.1',
+  ],
+  'Сенозаготовительная техника': [
+    'Krone BiG X 880',
+    'CLAAS QUADRANT 5300',
+    'Pottinger NOVACAT',
+  ],
+  Дискаторы: ['Lemken Heliodor 9', 'Kuhn Optimer L', 'Horsch Joker 8 HD'],
+  Глубокорыхлители: [
+    'Lemken Karat 12',
+    'Kuhn Cultimer L 5000',
+    'Horsch Tiger 8 AS',
+  ],
+  'Зерноочистительная техника': [
+    'Petkus M15',
+    'Cimbria Delta 108',
+    'BUHLER LAAD',
+  ],
+  Зерносушилки: ['Mecmar SSH 30', 'Strahl 1500', 'GSI Series 1100'],
+  'Поливальные машины': [
+    'Valley 8000',
+    'Reinke E2065',
+    'Bauer Centerstar 9000',
+  ],
 };
 
 const attachments = [
@@ -96,6 +147,14 @@ const attachments = [
   'Каток кольчато-шпоровый',
   'Глубокорыхлитель',
   'Погрузочная стрела',
+  'Снегоочиститель',
+  'Щетка дорожная',
+  'Бур навесной',
+  'Грейферный ковш',
+  'Мульчер',
+  'Борона зубовая',
+  'Сеялка точного высева',
+  'Опрыскиватель прицепной',
 ];
 
 const providerNames = [
@@ -126,6 +185,14 @@ const farmerNames = [
   ['Наталья', 'Громова'],
   ['Еркебулан', 'Мусин'],
   ['Светлана', 'Корнеева'],
+  ['Аружан', 'Калиева'],
+  ['Виктор', 'Соколов'],
+  ['Гульнара', 'Оспанова'],
+  ['Дмитрий', 'Лебедев'],
+  ['Жания', 'Бекова'],
+  ['Канат', 'Дюсенов'],
+  ['Лаура', 'Жаксыбекова'],
+  ['Павел', 'Морозов'],
 ];
 
 const machineImageFiles = [
@@ -206,9 +273,20 @@ async function downloadImage(fileName: string, destination: string) {
 
 async function ensureSeedMachineImages() {
   const uploadDir = join(process.cwd(), 'uploads', 'machines', 'seed');
-  await mkdir(uploadDir, { recursive: true });
 
-  const localUrls: string[] = [];
+  // If the uploads directory can't be created (e.g. no persistent volume on
+  // the host), fall back to serving the images straight from Wikimedia Commons.
+  try {
+    await mkdir(uploadDir, { recursive: true });
+  } catch (error) {
+    console.warn(
+      'Could not create uploads directory, using remote image URLs instead.',
+      error,
+    );
+    return machineImageFiles.map(commonsFileUrl);
+  }
+
+  const urls: string[] = [];
 
   for (let i = 0; i < machineImageFiles.length; i++) {
     const sourceName = machineImageFiles[i];
@@ -218,15 +296,23 @@ async function ensureSeedMachineImages() {
       .toLowerCase()}.jpg`;
     const destination = join(uploadDir, localFileName);
 
-    if (!(await fileExists(destination))) {
-      await downloadImage(sourceName, destination);
-      await sleep(1500);
+    try {
+      if (!(await fileExists(destination))) {
+        await downloadImage(sourceName, destination);
+        await sleep(1500);
+      }
+      urls.push(`/uploads/machines/seed/${localFileName}`);
+    } catch {
+      // A single failed download shouldn't abort the whole seed — point the
+      // photo at the remote source instead.
+      console.warn(
+        `Image download failed for "${sourceName}", using remote URL.`,
+      );
+      urls.push(commonsFileUrl(sourceName));
     }
-
-    localUrls.push(`/uploads/machines/seed/${localFileName}`);
   }
 
-  return localUrls;
+  return urls;
 }
 
 async function upsertUser(
@@ -427,6 +513,21 @@ async function findOrCreateReview(data: {
   return prisma.review.create({ data });
 }
 
+async function findOrCreateRefreshToken(data: {
+  userId: number;
+  token: string;
+  expiresAt: Date;
+  ip?: string;
+  userAgent?: string;
+  lastUsedAt?: Date;
+}) {
+  const existing = await prisma.refreshToken.findFirst({
+    where: { token: data.token },
+  });
+  if (existing) return existing;
+  return prisma.refreshToken.create({ data });
+}
+
 async function main() {
   console.log('Seeding demo data...');
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -590,7 +691,7 @@ async function main() {
   ];
 
   const rentals: any[] = [];
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; i < 100; i++) {
     const machine = pick(machines, i);
     const farmer = pick(farmers, i + 2);
     const startDate = daysFromNow(-35 + i);
@@ -659,7 +760,8 @@ async function main() {
     });
   }
 
-  for (let i = 0; i < 30; i++) {
+  const conversationCount = 40;
+  for (let i = 0; i < conversationCount; i++) {
     const machine = pick(machines, i);
     const farmer = pick(farmers, i + 4);
     const owner =
@@ -713,6 +815,24 @@ async function main() {
     isRead: false,
   });
 
+  const allUsers: any[] = [admin, ...providers, ...farmers];
+  let refreshTokenCount = 0;
+  for (let i = 0; i < 30; i++) {
+    const user = pick(allUsers, i);
+    await findOrCreateRefreshToken({
+      userId: user.id,
+      token: `seed-refresh-${user.id}-${i}`,
+      expiresAt: daysFromNow(7 + (i % 14)),
+      ip: `10.0.${i % 255}.${(i * 7) % 255}`,
+      userAgent:
+        i % 2 === 0
+          ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+          : 'AgriRentalApp/1.0 (Android 14)',
+      lastUsedAt: daysFromNow(-(i % 5)),
+    });
+    refreshTokenCount++;
+  }
+
   console.log('Seed complete:');
   console.log(`- admin: admin@agri-rental.local / ${password}`);
   console.log(`- users: ${providers.length + farmers.length + 1}`);
@@ -722,8 +842,9 @@ async function main() {
   console.log(`- attachments: ${attachmentRecords.length}`);
   console.log(`- machines: ${machines.length}`);
   console.log(`- rentals: ${rentals.length}`);
-  console.log(`- conversations: 30`);
+  console.log(`- conversations: ${conversationCount}`);
   console.log(`- reviews: ${reviewCount}`);
+  console.log(`- refreshTokens: ${refreshTokenCount}`);
 }
 
 main()
