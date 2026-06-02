@@ -1,0 +1,9 @@
+# Build configuration for Railway / Nixpacks.
+#
+# NODE_ENV=production (set in the service variables) makes `npm ci` omit
+# devDependencies. But the build needs them — @nestjs/cli provides the `nest`
+# command and typescript is the compiler. `--include=dev` forces them in for
+# the build phase regardless of NODE_ENV. Runtime deps all live in
+# "dependencies", so the running app is unaffected.
+[phases.install]
+cmds = ["npm ci --include=dev"]
